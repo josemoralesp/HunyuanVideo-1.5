@@ -1,0 +1,91 @@
+# docker-compose.yml -- HunyuanVideo-1.5 inference (single GPU, compose v2)
+#
+# ----------------------------------------------------------------------------
+# Running a generation
+# ----------------------------------------------------------------------------
+# The container's ENTRYPOINT is `python generate.py`, so the `command:` list
+# (or extra args to `docker compose run`) are generate.py arguments.
+#
+# A) Run the built-in example (defined in `command:` below):
+#       docker compose run --rm inference
+#
+# B) Override the prompt / output / options on the CLI:
+#       docker compose run --rm inference \
+#         --prompt="your prompt here" \
+#         --resolution=720p \
+#         --model_path=/app/ckpts \
+#         --rewrite=false \
+#         --sr=true \
+#         --output_path=/app/outputs/mine.mp4
+#
+# The model directory is ALWAYS /app/ckpts (mounted read-only from ./ckpts).
+# Outputs are written to /app/outputs (mounted read-write to ./outputs).
+#
+# SECURITY: no HuggingFace credential is passed to this container. Checkpoints
+# are downloaded separately on the host via scripts/download_checkpoints.sh
+# (which reads the local, gitignored .env). The inference container only sees
+# the already-downloaded ckpts/.
+# ----------------------------------------------------------------------------
+
+services:
+  inference:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: hunyuanvideo-1.5:latest
+
+    # GPU access, compose-v2 style: maps to ALL GPUs via NVIDIA Container Toolkit.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+    # No privileges required: drop all Linux capabilities.
+    cap_drop:
+      - ALL
+
+    volumes:
+      # Checkpoints: read-only. Downloaded on the host beforehand.
+      - ./ckpts:/app/ckpts:ro
+      # Outputs: read-write, persisted to the host.
+      - ./outputs:/app/outputs
+
+    # EXAMPLE 720p text-to-video run. Edit here or override with `docker compose run` args.
+    # `--rewrite=false` avoids needing a vLLM rewrite endpoint (see README Inference).
+    command:
+      - "--prompt=A cinematic close-up of a red panda eating bamboo, soft morning light, shallow depth of field"
+      - "--resolution=720p"
+      - "--model_path=/app/ckpts"
+      - "--rewrite=false"
+      - "--sr=true"
+      - "--seed=123"
+      - "--output_path=/app/outputs/output_720p.mp4"
+
+  # --------------------------------------------------------------------------
+  # downloader: descarga TODOS los checkpoints al volumen ./ckpts.
+  # Recibe HF_TOKEN de forma EFÍMERA (solo para esta corrida; --rm lo destruye).
+  # El contenedor `inference` NUNCA ve el token. Cero instalación en el host.
+  #
+  # Uso:
+  #   docker compose run --rm downloader           # descarga completa (~80-120GB)
+  # El script es idempotente: re-correrlo reanuda descargas interrumpidas.
+  # --------------------------------------------------------------------------
+  downloader:
+    image: hunyuanvideo-1.5:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    entrypoint: ["bash"]
+    command: ["/app/scripts/download_checkpoints.sh"]
+    cap_drop:
+      - ALL
+    volumes:
+      # rw: aquí escribe todos los checkpoints (persisten al host ./ckpts).
+      - ./ckpts:/app/ckpts
+    # El token se interpola desde el .env del host (compose lo lee automáticamente)
+    # y se pasa SOLO a este contenedor. inference no lo recibe.
+    environment:
+      - HF_TOKEN=${HF_TOKEN:?Falta HF_TOKEN en .env (ver .env.example)}

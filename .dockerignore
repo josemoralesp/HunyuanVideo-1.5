@@ -1,0 +1,26 @@
+# Keep the build context small and NEVER bake secrets/checkpoints into the image.
+# (Checkpoints are mounted read-only at runtime from ./ckpts.)
+.git/
+.gitignore
+
+# Secrets -- must never enter the image.
+.env
+.env.*
+
+# Large model artifacts and outputs (downloaded separately / produced at runtime).
+ckpts/
+outputs/
+.cache/
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.mp4
+*.avi
+*.mov
+*.gif
+
+# Python caches.
+**/__pycache__/
+**/*.pyc
