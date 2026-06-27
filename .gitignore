@@ -129,7 +129,10 @@ dmypy.json
 .pyre/
 
 # Model checkpoints and outputs
-outputs/
+# Keep the outputs/ folder tracked (via .gitkeep) but ignore all generated
+# videos/images inside it.
+outputs/*
+!outputs/.gitkeep
 *.safetensors
 *.bin
 *.pt

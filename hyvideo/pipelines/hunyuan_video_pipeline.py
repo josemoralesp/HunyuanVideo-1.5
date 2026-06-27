@@ -159,9 +159,14 @@ class HunyuanVideo_1_5_Pipeline(DiffusionPipeline):
         self.image_processor = VaeImageProcessor(vae_scale_factor=self.vae_scale_factor)
         self.text_len = text_encoder.max_length
         self.target_dtype = torch.bfloat16
-        self.vae_dtype = torch.float16
+        # VAE decode in fp32 (was float16). fp16 VAE decode tints dark regions
+        # green/purple and adds blocky "pixelado" artifacts; SR can't fix it
+        # because the color is baked into the base frames. fp32 decode is clean.
+        # Applies to BOTH base and SR pipelines (SR inherits this class), so the
+        # green is fixed in the base decode AND the SR upsampling decode.
+        self.vae_dtype = torch.float32
         self.autocast_enabled = True
-        self.vae_autocast_enabled = True
+        self.vae_autocast_enabled = False
         self.enable_offloading = enable_offloading
         self.execution_device = torch.device(execution_device)
 

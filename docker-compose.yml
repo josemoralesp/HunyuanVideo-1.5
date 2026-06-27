@@ -80,6 +80,11 @@ services:
       dockerfile: docker/Dockerfile
     entrypoint: ["bash"]
     command: ["/app/scripts/download_checkpoints.sh"]
+    # Graceful shutdown: give hf download up to 2 min to flush the current
+    # ~33GB chunk and close the .incomplete cleanly on `docker stop`. Without
+    # this, the default 10s SIGKILL (exit 137) corrupts the partial and forces
+    # hf to truncate + restart from zero on the next run.
+    stop_grace_period: 120s
     cap_drop:
       - ALL
     volumes:
@@ -89,3 +94,7 @@ services:
     # y se pasa SOLO a este contenedor. inference no lo recibe.
     environment:
       - HF_TOKEN=${HF_TOKEN:?Falta HF_TOKEN en .env (ver .env.example)}
+      # Force stalled TCP reads to abort after 60s and retry instead of hanging
+      # forever (huggingface_hub has no read timeout by default; a dropped HF
+      # connection would otherwise freeze the whole transfer mid-file).
+      - HF_HUB_DOWNLOAD_TIMEOUT=60

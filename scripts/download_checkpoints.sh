@@ -70,16 +70,19 @@ command -v modelscope >/dev/null 2>&1 || {
     exit 1
 }
 
-echo "==[ 1/5 ] DiT + VAE + scheduler + SR transformers (tencent/HunyuanVideo-1.5)"
-echo "    (optimized: only 720p_t2v + SR transformers + vae + scheduler)"
+echo "==[ 1/5 ] DiT + VAE + scheduler + SR transformers + SR upsampler (tencent/HunyuanVideo-1.5)"
+echo "    (optimized: only 720p_t2v + SR transformers + SR upsampler + vae + scheduler)"
 # Only download what a 720p T2V + SR run actually loads. Skipping 480p/I2V/distilled
 # variants cuts ~200GB down to ~100GB and reduces hf download stall risk.
 # --max-workers 4 lowers concurrency (default 8) for more stable long transfers.
+# upsampler/1080p_sr_distilled is REQUIRED by --sr=true for a 720p base (SR upscales
+# 720p->1080p; see TRANSFORMER_VERSION_TO_SR_VERSION). Only ~200MB.
 hf download tencent/HunyuanVideo-1.5 --local-dir ./ckpts \
     --max-workers 4 \
     --include "transformer/720p_t2v/*" \
              "transformer/720p_sr_distilled/*" \
              "transformer/1080p_sr_distilled/*" \
+             "upsampler/1080p_sr_distilled/*" \
              "vae/*" \
              "scheduler/*" \
              "config.json" \
